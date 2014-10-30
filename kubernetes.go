@@ -41,28 +41,19 @@ func (ksync *KubernetesSync) OnUpdate(services []api.Service) {
 	activeServices := util.StringSet{}
 	for _, service := range services {
 		activeServices.Insert(service.Name)
-		info, exists := ksync.getServiceInfo(service.Name)
+
+		externalService := ksync.osExternalServiceFromService(service)
+
 		serviceIP := net.ParseIP(service.PortalIP)
-		if exists && (info.portalPort != service.Port || !info.portalIP.Equal(serviceIP)) {
-			err := ksync.removeDNS(service.Name, info)
-			if err != nil {
-				log.Printf("failed to remove dns for %q: %s\n", service.Name, err)
-			}
-		}
-		log.Printf("adding new service %q at %s:%d/%s (local :%d)\n", service.Name, serviceIP, service.Port, service.Protocol, service.ProxyPort)
-		si := &serviceInfo{
-			proxyPort: service.ProxyPort,
-			protocol:  service.Protocol,
-			active:    true,
-		}
-		ksync.setServiceInfo(service.Name, si)
-		si.portalIP = serviceIP
-		si.portalPort = service.Port
-		err := ksync.addDNS(service.Name, si)
-		if err != nil {
-			log.Println("failed to add dns %q: %s", service.Name, err)
-		}
+		externalServiceIP := net.ParseIP(externalService.PortalIP)
+
+		ksync.osRemoveDNS(service, serviceIP)
+		ksync.osRemoveDNS(*externalService, externalServiceIP)
+
+		ksync.osAddDNS(service, serviceIP)
+		ksync.osAddDNS(*externalService, externalServiceIP)
 	}
+
 	ksync.mu.Lock()
 	defer ksync.mu.Unlock()
 	for name, info := range ksync.serviceMap {
@@ -73,6 +64,42 @@ func (ksync *KubernetesSync) OnUpdate(services []api.Service) {
 			}
 			delete(ksync.serviceMap, name)
 		}
+	}
+}
+
+func (ksync *KubernetesSync) osExternalServiceFromService(service api.Service) *api.Service{
+	return &api.Service{
+		PortalIP: "127.0.0.1",
+		ProxyPort: 80,
+		Port: 80,
+		Protocol: service.Protocol,
+		ObjectMeta: api.ObjectMeta{Name: service.Name + ".v3"},
+	}
+}
+
+func (ksync *KubernetesSync) osRemoveDNS(service api.Service, serviceIP net.IP){
+	info, exists := ksync.getServiceInfo(service.Name)
+	if exists && (info.portalPort != service.Port || !info.portalIP.Equal(serviceIP)) {
+		err := ksync.removeDNS(service.Name, info)
+		if err != nil {
+			log.Printf("failed to remove dns for %q: %s\n", service.Name, err)
+		}
+	}
+}
+
+func (ksync *KubernetesSync) osAddDNS(service api.Service, serviceIP net.IP){
+	log.Printf("adding new service %q at %s:%d/%s (local :%d)\n", service.Name, serviceIP, service.Port, service.Protocol, service.ProxyPort)
+	si := &serviceInfo{
+		proxyPort: service.ProxyPort,
+		protocol:  service.Protocol,
+		active:    true,
+	}
+	ksync.setServiceInfo(service.Name, si)
+	si.portalIP = serviceIP
+	si.portalPort = service.Port
+	err := ksync.addDNS(service.Name, si)
+	if err != nil {
+		log.Println("failed to add dns %q: %s", service.Name, err)
 	}
 }
 
