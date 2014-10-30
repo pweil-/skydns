@@ -40,9 +40,10 @@ func NewKubernetesSync(client *etcd.Client) *KubernetesSync {
 func (ksync *KubernetesSync) OnUpdate(services []api.Service) {
 	activeServices := util.StringSet{}
 	for _, service := range services {
-		activeServices.Insert(service.Name)
-
 		externalService := ksync.osExternalServiceFromService(service)
+
+		activeServices.Insert(service.Name)
+		activeServices.Insert(externalService.Name)
 
 		serviceIP := net.ParseIP(service.PortalIP)
 		externalServiceIP := net.ParseIP(externalService.PortalIP)
