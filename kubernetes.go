@@ -25,15 +25,15 @@ type KubernetesSync struct {
 	serviceMap map[string]*serviceInfo
 	eclient    *etcd.Client
 	openshiftRouter string
-	openshiftServicePostFix string
+	openshiftServicePostfix string
 }
 
-func NewKubernetesSync(client *etcd.Client, openshiftRouter string, openshiftServicePostFix string) *KubernetesSync {
+func NewKubernetesSync(client *etcd.Client, openshiftRouter string, openshiftServicePostfix string) *KubernetesSync {
 	ks := &KubernetesSync{
 		serviceMap: make(map[string]*serviceInfo),
 		eclient:    client,
 		openshiftRouter: openshiftRouter,
-		openshiftServicePostFix: openshiftServicePostFix,
+		openshiftServicePostfix: openshiftServicePostfix,
 	}
 	return ks
 }
@@ -78,7 +78,7 @@ func (ksync *KubernetesSync) osExternalServiceFromService(service api.Service) *
 		ProxyPort: 80,
 		Port: 80,
 		Protocol: service.Protocol,
-		ObjectMeta: api.ObjectMeta{Name: service.Name + "." + openshiftServicePostFix},
+		ObjectMeta: api.ObjectMeta{Name: service.Name + "." + openshiftServicePostfix},
 	}
 }
 
@@ -160,7 +160,7 @@ func init() {
 	client.BindClientConfigFlags(flag.CommandLine, clientConfig)
 }
 
-func WatchKubernetes(eclient *etcd.Client, openshiftRouter string, openshiftServicePostFix string) {
+func WatchKubernetes(eclient *etcd.Client, openshiftRouter string, openshiftServicePostfix string) {
 	serviceConfig := pconfig.NewServiceConfig()
 	endpointsConfig := pconfig.NewEndpointsConfig()
 
@@ -168,7 +168,7 @@ func WatchKubernetes(eclient *etcd.Client, openshiftRouter string, openshiftServ
 		log.Printf("using api calls to get Kubernetes config %v\n", clientConfig.Host)
 
 		if openshiftRouter != "" {
-			log.Printf("integrating with openshift router at: %s:80 using postfix: %s", openshiftRouter, openshiftServicePostFix)
+			log.Printf("integrating with openshift router at: %s:80 using postfix: %s", openshiftRouter, openshiftServicePostfix)
 		}
 
 		client, err := client.New(clientConfig)
@@ -184,7 +184,7 @@ func WatchKubernetes(eclient *etcd.Client, openshiftRouter string, openshiftServ
 		)
 	}
 
-	ks := NewKubernetesSync(eclient, openshiftRouter, openshiftServicePostFix)
+	ks := NewKubernetesSync(eclient, openshiftRouter, openshiftServicePostfix)
 	// Wire skydns to handle changes to services
 	serviceConfig.RegisterHandler(ks)
 }

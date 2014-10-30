@@ -34,7 +34,7 @@ var (
 	kubernetes   = false
 	clientConfig = &kclient.Config{}
 	openshiftRouter = ""
-	openshiftServicePostFix = ""
+	openshiftServicePostfix = ""
 )
 
 const (
@@ -69,7 +69,7 @@ func init() {
 
 	//Openshift router integration
 	flag.StringVar(&openshiftRouter, "router", env("OPENSHIFT_ROUTER", ""), "Openshift router ip address")
-	flag.StringVar(&openshiftServicePostFix, "servicePostfix", "", "Openshift service postfix")
+	flag.StringVar(&openshiftServicePostfix, "servicePostfix", "", "Openshift service postfix")
 
 	// TTl
 	// Minttl
@@ -130,7 +130,7 @@ func main() {
 
 	statsCollect()
 	if kubernetes {
-		go WatchKubernetes(client, openshiftRouter, openshiftServicePostFix)
+		go WatchKubernetes(client, openshiftRouter, openshiftServicePostfix)
 	}
 	if err := s.Run(); err != nil {
 		log.Fatal(err)
