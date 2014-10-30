@@ -24,12 +24,16 @@ type KubernetesSync struct {
 	mu         sync.Mutex // protects serviceMap
 	serviceMap map[string]*serviceInfo
 	eclient    *etcd.Client
+	openshiftRouter string
+	openshiftServicePostFix string
 }
 
-func NewKubernetesSync(client *etcd.Client) *KubernetesSync {
+func NewKubernetesSync(client *etcd.Client, openshiftRouter string, openshiftServicePostFix string) *KubernetesSync {
 	ks := &KubernetesSync{
 		serviceMap: make(map[string]*serviceInfo),
 		eclient:    client,
+		openshiftRouter: openshiftRouter,
+		openshiftServicePostFix: openshiftServicePostFix,
 	}
 	return ks
 }
@@ -40,19 +44,19 @@ func NewKubernetesSync(client *etcd.Client) *KubernetesSync {
 func (ksync *KubernetesSync) OnUpdate(services []api.Service) {
 	activeServices := util.StringSet{}
 	for _, service := range services {
-		externalService := ksync.osExternalServiceFromService(service)
-
 		activeServices.Insert(service.Name)
-		activeServices.Insert(externalService.Name)
-
 		serviceIP := net.ParseIP(service.PortalIP)
-		externalServiceIP := net.ParseIP(externalService.PortalIP)
-
 		ksync.osRemoveDNS(service, serviceIP)
-		ksync.osRemoveDNS(*externalService, externalServiceIP)
-
 		ksync.osAddDNS(service, serviceIP)
-		ksync.osAddDNS(*externalService, externalServiceIP)
+
+
+		if ksync.openshiftRouter != "" {
+			externalService := ksync.osExternalServiceFromService(service)
+			activeServices.Insert(externalService.Name)
+			externalServiceIP := net.ParseIP(externalService.PortalIP)
+			ksync.osRemoveDNS(*externalService, externalServiceIP)
+			ksync.osAddDNS(*externalService, externalServiceIP)
+		}
 	}
 
 	ksync.mu.Lock()
@@ -70,11 +74,11 @@ func (ksync *KubernetesSync) OnUpdate(services []api.Service) {
 
 func (ksync *KubernetesSync) osExternalServiceFromService(service api.Service) *api.Service{
 	return &api.Service{
-		PortalIP: "127.0.0.1",
+		PortalIP: ksync.openshiftRouter,
 		ProxyPort: 80,
 		Port: 80,
 		Protocol: service.Protocol,
-		ObjectMeta: api.ObjectMeta{Name: service.Name + ".v3"},
+		ObjectMeta: api.ObjectMeta{Name: service.Name + "." + openshiftServicePostFix},
 	}
 }
 
@@ -156,12 +160,17 @@ func init() {
 	client.BindClientConfigFlags(flag.CommandLine, clientConfig)
 }
 
-func WatchKubernetes(eclient *etcd.Client) {
+func WatchKubernetes(eclient *etcd.Client, openshiftRouter string, openshiftServicePostFix string) {
 	serviceConfig := pconfig.NewServiceConfig()
 	endpointsConfig := pconfig.NewEndpointsConfig()
 
 	if clientConfig.Host != "" {
 		log.Printf("using api calls to get Kubernetes config %v\n", clientConfig.Host)
+
+		if openshiftRouter != "" {
+			log.Printf("integrating with openshift router at: %s:80 using postfix: %s", openshiftRouter, openshiftServicePostFix)
+		}
+
 		client, err := client.New(clientConfig)
 		if err != nil {
 			log.Fatalf("Kubernetes requested, but received invalid API configuration: %v", err)
@@ -175,7 +184,7 @@ func WatchKubernetes(eclient *etcd.Client) {
 		)
 	}
 
-	ks := NewKubernetesSync(eclient)
+	ks := NewKubernetesSync(eclient, openshiftRouter, openshiftServicePostFix)
 	// Wire skydns to handle changes to services
 	serviceConfig.RegisterHandler(ks)
 }

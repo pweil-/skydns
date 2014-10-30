@@ -33,6 +33,8 @@ var (
 	verbose      = false
 	kubernetes   = false
 	clientConfig = &kclient.Config{}
+	openshiftRouter = ""
+	openshiftServicePostFix = ""
 )
 
 const (
@@ -64,6 +66,10 @@ func init() {
 	flag.BoolVar(&verbose, "verbose", false, "log queries")
 	flag.BoolVar(&config.Systemd, "systemd", false, "bind to socket(s) activated by systemd (ignore -addr)")
 	flag.BoolVar(&kubernetes, "kubernetes", false, "read endpoints from a kubernetes master")
+
+	//Openshift router integration
+	flag.StringVar(&openshiftRouter, "router", env("OPENSHIFT_ROUTER", ""), "Openshift router ip address")
+	flag.StringVar(&openshiftServicePostFix, "servicePostfix", "", "Openshift service postfix")
 
 	// TTl
 	// Minttl
@@ -124,7 +130,7 @@ func main() {
 
 	statsCollect()
 	if kubernetes {
-		go WatchKubernetes(client)
+		go WatchKubernetes(client, openshiftRouter, openshiftServicePostFix)
 	}
 	if err := s.Run(); err != nil {
 		log.Fatal(err)
